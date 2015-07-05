@@ -17,15 +17,11 @@ class WSGIServer(object):
         )
         # Allow to reuse the same address
         listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # Bind
         listen_socket.bind(server_address)
-        # Activate
         listen_socket.listen(self.request_queue_size)
-        # Get server host name and port
         host, port = self.listen_socket.getsockname()[:2]
         self.server_name = socket.getfqdn(host)
         self.server_port = port
-        # Return headers set by Web framework/Web application
         self.headers_set = []
 
     def set_app(self, application):
@@ -71,23 +67,19 @@ class WSGIServer(object):
 
     def get_environ(self):
         env = {}
-        # The following code snippet does not follow PEP8 conventions
-        # but it's formatted the way it is for demonstration purposes
-        # to emphasize the required variables and their values
-        #
         # Required WSGI variables
-        env['wsgi.version']      = (1, 0)
-        env['wsgi.url_scheme']   = 'http'
-        env['wsgi.input']        = StringIO.StringIO(self.request_data)
-        env['wsgi.errors']       = sys.stderr
-        env['wsgi.multithread']  = False
+        env['wsgi.version'] = (1, 0)
+        env['wsgi.url_scheme'] = 'http'
+        env['wsgi.input'] = StringIO.StringIO(self.request_data)
+        env['wsgi.errors'] = sys.stderr
+        env['wsgi.multithread'] = False
         env['wsgi.multiprocess'] = False
-        env['wsgi.run_once']     = False
+        env['wsgi.run_once'] = False
         # Required CGI variables
-        env['REQUEST_METHOD']    = self.request_method    # GET
-        env['PATH_INFO']         = self.path              # /hello
-        env['SERVER_NAME']       = self.server_name       # localhost
-        env['SERVER_PORT']       = str(self.server_port)  # 8888
+        env['REQUEST_METHOD'] = self.request_method    # GET
+        env['PATH_INFO'] = self.path              # /hello
+        env['SERVER_NAME'] = self.server_name       # localhost
+        env['SERVER_PORT'] = str(self.server_port)  # 8888
         return env
 
     def start_response(self, status, response_headers, exc_info=None):
@@ -97,10 +89,6 @@ class WSGIServer(object):
             ('Server', 'WSGIServer 0.2'),
         ]
         self.headers_set = [status, response_headers + server_headers]
-        # To adhere to WSGI specification the start_response must return
-        # a 'write' callable. We simplicity's sake we'll ignore that detail
-        # for now.
-        # return self.finish_response
 
     def finish_response(self, result):
         try:
@@ -111,7 +99,7 @@ class WSGIServer(object):
             response += '\r\n'
             for data in result:
                 response += data
-            # Print formatted response data a la 'curl -v'
+
             print(''.join(
                 '> {line}\n'.format(line=line)
                 for line in response.splitlines()
