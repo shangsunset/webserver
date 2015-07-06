@@ -1,13 +1,29 @@
 import socket
 import StringIO
 import sys
+import os
+import time
+import errno
+import signal
 
+
+def wait_for_child_signal(signum, frame):
+    while True:
+        try:
+            #wait for any child process. do not block and return EWOULDBLOCK error
+            pid, status = os.waitpid(-1, os.WNOHANG)
+        except OSError:
+            return
+
+        #no more zombie process
+        if pid == 0:
+            return
 
 class WSGIServer(object):
 
     address_family = socket.AF_INET
     socket_type = socket.SOCK_STREAM
-    request_queue_size = 1
+    request_queue_size = 20
 
     def __init__(self, server_address):
         # Create a listening socket
@@ -27,22 +43,39 @@ class WSGIServer(object):
     def set_app(self, application):
         self.application = application
 
+
     def serve_forever(self):
         listen_socket = self.listen_socket
+        #signal will fire when a child process exists
+        signal.signal(signal.SIGCHLD, wait_for_child_signal)
         while True:
-            # New client connection
-            self.client_connection, client_address = listen_socket.accept()
-            # Handle one request and close the client connection. Then
-            # loop over to wait for another client connection
-            self.handle_one_request()
+            try:
+                # New client connection
+                self.client_connection, client_address = listen_socket.accept()
+            except IOError as e:
+                code, error = e.args
+                if code == errno.EINTR:
+                    continue
+                else:
+                    raise
+            pid = os.fork()
+            if pid == 0:
+                #close child copy
+                listen_socket.close()
+                # Handle one request and close the client connection. Then
+                # loop over to wait for another client connection
+                self.handle_one_request()
+                os._exit(0)
+            else:
+                self.client_connection.close()
 
     def handle_one_request(self):
         self.request_data = request_data = self.client_connection.recv(1024)
         # Print formatted request data a la 'curl -v'
-        print(''.join(
+        print ''.join(
             '< {line}\n'.format(line=line)
             for line in request_data.splitlines()
-        ))
+            )
 
         self.parse_request(request_data)
 
@@ -85,7 +118,7 @@ class WSGIServer(object):
     def start_response(self, status, response_headers, exc_info=None):
         # Add necessary server headers
         server_headers = [
-            ('Date', 'Tue, 31 Mar 2015 12:54:48 GMT'),
+            ('Date', 'Tue, 2nd July 2015 12:54:48 GMT'),
             ('Server', 'WSGIServer 0.2'),
         ]
         self.headers_set = [status, response_headers + server_headers]
@@ -100,11 +133,12 @@ class WSGIServer(object):
             for data in result:
                 response += data
 
-            print(''.join(
+            print ''.join(
                 '> {line}\n'.format(line=line)
                 for line in response.splitlines()
-            ))
+                )
             self.client_connection.sendall(response)
+            time.sleep(30)
         finally:
             self.client_connection.close()
 
@@ -126,5 +160,5 @@ if __name__ == '__main__':
     module = __import__(module)
     application = getattr(module, application)
     httpd = make_server(SERVER_ADDRESS, application)
-    print('WSGIServer: Serving HTTP on port {port} ...\n'.format(port=PORT))
+    print 'WSGIServer: Serving HTTP on port {port} ...\n'.format(port=PORT)
     httpd.serve_forever()
